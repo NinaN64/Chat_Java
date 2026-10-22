@@ -1,5 +1,6 @@
 package io.ninan.chat;
 import io.ninan.chat.server.ClientConnection;
+import io.ninan.chat.server.EchoServer;
 import io.ninan.chat.server.Server;
 
 import java.net.*;
