@@ -18,10 +18,16 @@ public class ServerMain {
 
             while (true) {
                 Socket socket = serverSocket.accept();
-                ServerThread serverThread = new ServerThread(socket, this);
-                clients.add(serverThread);
-
-                new Thread(serverThread).start();
+                try {
+                    ServerThread serverThread = new ServerThread(socket, this);
+                    clients.add(serverThread);
+                    new Thread(serverThread).start();
+                } catch (IOException e) {
+                    System.err.println("Could not set up client: " + e.getMessage());
+                    try {
+                        socket.close();
+                    } catch (IOException ignored) {}
+                }
             }
         } catch (IOException e) {
             e.printStackTrace();

@@ -6,9 +6,8 @@ import java.util.Scanner;
 
 public class ClientConnection {
 
-    public ClientConnection() {
-        try {
-            Socket socket = new Socket("localhost", 2020);
+    public ClientConnection(String host, int port) {
+        try (Socket socket = new Socket(host, port)) {
             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             PrintWriter out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
             Scanner keyboard = new Scanner(System.in);
@@ -26,21 +25,31 @@ public class ClientConnection {
             listenerThread.setDaemon(true);
             listenerThread.start();
 
-            while (true) {
+            while (keyboard.hasNextLine()) {
                 String input = keyboard.nextLine();
                 out.println(input);
                 if (input.equalsIgnoreCase("/quit")) {
                     break;
                 }
             }
-
-            socket.close();
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println("Could not connect to " + host + ":" + port + " (" + e.getMessage() + ")");
         }
     }
 
     public static void main(String[] args) {
-        new ClientConnection();
+        String host = args.length >= 1 ? args[0] : "localhost";
+        int port = 2020;
+
+        if (args.length >= 2) {
+            try {
+                port = Integer.parseInt(args[1]);
+            } catch (NumberFormatException e) {
+                System.out.println("Port must be a number.");
+                return;
+            }
+        }
+
+        new ClientConnection(host, port);
     }
 }

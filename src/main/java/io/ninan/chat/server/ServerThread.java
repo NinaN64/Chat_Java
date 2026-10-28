@@ -7,12 +7,13 @@ public class ServerThread implements Runnable {
 
     private final Socket socket;
     private final ServerMain serverMain;
-    private PrintWriter out;
+    private final PrintWriter out;
     private int clientNr;
 
-    public ServerThread(Socket socket, ServerMain main) {
+    public ServerThread(Socket socket, ServerMain main) throws IOException {
         this.socket = socket;
         this.serverMain = main;
+        this.out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
     }
 
     @Override
@@ -21,7 +22,6 @@ public class ServerThread implements Runnable {
         System.out.println("Client #" + clientNr + " connected.");
 
         try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
-            this.out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
 
             out.println("Welcome! You are Client #" + clientNr + ". Type /quit to leave.");
             serverMain.broadcast("[Server]: Client #" + clientNr + " has joined the room.", this);
@@ -37,7 +37,6 @@ public class ServerThread implements Runnable {
         } catch (IOException e) {
             System.err.println("Connection dropped with Client #" + clientNr);
         } finally {
-            // Cleanup on disconnect
             serverMain.removeClient(this);
             serverMain.broadcast("[Server]: Client #" + clientNr + " has left.", this);
             try {
@@ -48,8 +47,6 @@ public class ServerThread implements Runnable {
     }
 
     public void sendMessage(String message) {
-        if (out != null) {
-            out.println(message);
-        }
+        out.println(message);
     }
 }

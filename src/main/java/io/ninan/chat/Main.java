@@ -3,7 +3,8 @@ package io.ninan.chat;
 import java.io.IOException;
 
 public class Main {
-    static void main() throws IOException {
+    static void main() throws IOException
+    {
 
     }
 
