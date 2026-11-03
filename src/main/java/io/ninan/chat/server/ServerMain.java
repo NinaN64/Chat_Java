@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -11,6 +13,7 @@ public class ServerMain {
 
     private final AtomicInteger clientCounter = new AtomicInteger(1);
     private final List<ServerThread> clients = new CopyOnWriteArrayList<>();
+    private ConcurrentHashMap<String, ServerThread> listOfTakenNicknames = new ConcurrentHashMap<>();
 
     public ServerMain() {
         try (ServerSocket serverSocket = new ServerSocket(2020)) {
@@ -31,6 +34,16 @@ public class ServerMain {
             }
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    public boolean tryClaimNickname(String newNick, ServerThread thread) {
+        return listOfTakenNicknames.putIfAbsent(newNick.toLowerCase(), thread) == null;
+    }
+
+    public void releaseNickname(String nick) {
+        if (nick != null) {
+            listOfTakenNicknames.remove(nick.toLowerCase());
         }
     }
 
