@@ -2,30 +2,31 @@ package io.ninan.chat.server;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.List;
 
 public class ServerThread implements Runnable {
 
     private final Socket socket;
     private final ServerMain serverMain;
     private final PrintWriter out;
-    private int clientNr;
+    private final int clientNr;
     private volatile String nickname;
 
     public ServerThread(Socket socket, ServerMain main) throws IOException {
         this.socket = socket;
         this.serverMain = main;
         this.out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
+        this.clientNr = main.getClientNr();
+        this.nickname = "Client #" + clientNr;
     }
 
     @Override
     public void run() {
-        this.clientNr = serverMain.getClientNr();
-        this.nickname = "Client #" + clientNr;
         System.out.println(nickname + " connected.");
 
         try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
-            out.println("Welcome! You are " + nickname + ". Type /quit to leave.");
+            out.println("Welcome! You are " + nickname + ". Commands: /nick <name>, /who, /quit");
             serverMain.broadcast("[Server]: " + nickname + " has joined the room.", this);
 
             String message;
@@ -33,67 +34,93 @@ public class ServerThread implements Runnable {
                 if (message.equalsIgnoreCase("/quit")) {
                     break;
                 }
-                if (message.startsWith("/") && message.toLowerCase().startsWith("/nick")) {
-                    handleNickCommand(message);
+                if (message.isBlank()) {
                     continue;
                 }
                 if (message.startsWith("/")) {
-                    sendMessage("Unknown command.");
+                    handleCommand(message);
                     continue;
                 }
                 serverMain.broadcast(nickname + ": " + message, this);
             }
 
         } catch (IOException e) {
-            System.err.println("Connection dropped with" + nickname);
+            System.err.println("Connection dropped with " + nickname);
         } finally {
             serverMain.removeClient(this);
-            serverMain.releaseNickname(nickname);
+            serverMain.releaseNickname(nickname, this);
             serverMain.broadcast("[Server]: " + nickname + " has left.", this);
             try {
                 socket.close();
             } catch (IOException ignored) {}
-            System.out.println(nickname + clientNr + " disconnected.");
+            System.out.println(nickname + " disconnected.");
         }
     }
 
-    private void handleNickCommand(String message)
-    {
+    private void handleCommand(String message) {
         String[] parts = message.split("\\s+", 2);
-        if(parts.length < 2 || parts[1].trim().isEmpty())
-        {
+        String command = parts[0].toLowerCase();
+        String argument = parts.length > 1 ? parts[1].trim() : "";
+
+        switch (command) {
+            case "/nick":
+                handleNickCommand(argument);
+                break;
+            case "/who":
+                handleWhoCommand();
+                break;
+            default:
+                sendMessage("Unknown command.");
+        }
+    }
+
+    private void handleNickCommand(String newNick) {
+        if (newNick.isEmpty()) {
             sendMessage("Usage: /nick <name>");
             return;
         }
-        String newNick = parts[1].trim();
-
-        if(newNick.length() < 2)
-        {
-            sendMessage("The nickname is too short (minimum 2 characters)");
+        if (newNick.length() < 2) {
+            sendMessage("The nickname is too short (minimum 2 characters).");
             return;
         }
-        if(newNick.length() > 16)
-        {
-            sendMessage("The nickname is too long (max 16 characters)");
+        if (newNick.length() > 16) {
+            sendMessage("The nickname is too long (maximum 16 characters).");
             return;
         }
-        if(!newNick.matches("^[a-zA-Z0-9]+$"))
-        {
-            sendMessage("Nickname should only contain letters or numbers");
-            return;
-        }
-
-        if(!serverMain.tryClaimNickname(newNick, this))
-        {
-            sendMessage("The nickname is already taken, pick a new one.");
+        if (!newNick.matches("[a-zA-Z0-9]+")) {
+            sendMessage("Nickname should only contain letters or numbers.");
             return;
         }
 
         String oldNick = this.nickname;
-        serverMain.releaseNickname(oldNick);
-        this.nickname = newNick;
 
+        if (newNick.equalsIgnoreCase(oldNick)) {
+            if (newNick.equals(oldNick)) {
+                sendMessage("That is already your nickname.");
+            } else {
+                this.nickname = newNick;
+                serverMain.broadcast("[Server]: " + oldNick + " is now known as " + newNick, this);
+            }
+            return;
+        }
+
+        if (!serverMain.tryClaimNickname(newNick, this)) {
+            sendMessage("The nickname is already taken, pick a new one.");
+            return;
+        }
+
+        serverMain.releaseNickname(oldNick, this);
+        this.nickname = newNick;
         serverMain.broadcast("[Server]: " + oldNick + " is now known as " + newNick, this);
+    }
+
+    private void handleWhoCommand() {
+        List<String> names = serverMain.getNicknames();
+        sendMessage("Online (" + names.size() + "): " + String.join(", ", names));
+    }
+
+    public String getNickname() {
+        return nickname;
     }
 
     public void sendMessage(String message) {

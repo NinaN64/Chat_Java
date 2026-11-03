@@ -3,8 +3,8 @@ package io.ninan.chat.server;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -13,7 +13,7 @@ public class ServerMain {
 
     private final AtomicInteger clientCounter = new AtomicInteger(1);
     private final List<ServerThread> clients = new CopyOnWriteArrayList<>();
-    private ConcurrentHashMap<String, ServerThread> listOfTakenNicknames = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ServerThread> takenNicknames = new ConcurrentHashMap<>();
 
     public ServerMain() {
         try (ServerSocket serverSocket = new ServerSocket(2020)) {
@@ -38,12 +38,12 @@ public class ServerMain {
     }
 
     public boolean tryClaimNickname(String newNick, ServerThread thread) {
-        return listOfTakenNicknames.putIfAbsent(newNick.toLowerCase(), thread) == null;
+        return takenNicknames.putIfAbsent(newNick.toLowerCase(), thread) == null;
     }
 
-    public void releaseNickname(String nick) {
+    public void releaseNickname(String nick, ServerThread owner) {
         if (nick != null) {
-            listOfTakenNicknames.remove(nick.toLowerCase());
+            takenNicknames.remove(nick.toLowerCase(), owner);
         }
     }
 
@@ -59,6 +59,15 @@ public class ServerMain {
 
     public void removeClient(ServerThread client) {
         clients.remove(client);
+    }
+
+    public List<String> getNicknames() {
+        List<String> names = new ArrayList<>();
+        for (ServerThread client : clients) {
+            names.add(client.getNickname());
+        }
+        names.sort(String.CASE_INSENSITIVE_ORDER);
+        return names;
     }
 
     public static void main(String[] args) {
