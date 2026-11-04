@@ -51,9 +51,15 @@ public class ServerMain {
         return clientCounter.getAndIncrement();
     }
 
-    public void broadcast(String message, ServerThread sender) {
+    public void broadcast(String message, ServerThread sender)
+    {
         for (ServerThread client : clients) {
-            client.sendMessage(message);
+            if(!client.sendMessage(message))
+            {
+                System.out.println(client.getNickname() + " is too slow, disconnecting.");
+                removeClient(client);
+                client.disconnect();
+            }
         }
     }
 

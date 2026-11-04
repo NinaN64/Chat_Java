@@ -3,6 +3,11 @@ package io.ninan.chat.server;
 import java.io.*;
 import java.net.Socket;
 import java.util.List;
+import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class ServerThread implements Runnable {
 
@@ -11,6 +16,8 @@ public class ServerThread implements Runnable {
     private final PrintWriter out;
     private final int clientNr;
     private volatile String nickname;
+    private final BlockingQueue<String> outgoing = new LinkedBlockingQueue<>(100);
+
 
     public ServerThread(Socket socket, ServerMain main) throws IOException {
         this.socket = socket;
@@ -123,7 +130,19 @@ public class ServerThread implements Runnable {
         return nickname;
     }
 
-    public void sendMessage(String message) {
-        out.println(message);
+    public boolean sendMessage(String message)
+    {
+        boolean doesItFit = outgoing.offer(message);
+        return doesItFit;
+    }
+
+    public void disconnect()
+    {
+        try
+        {
+            socket.close();
+        }
+        catch(IOException e){}
+        
     }
 }
