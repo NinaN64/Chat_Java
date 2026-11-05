@@ -57,6 +57,25 @@ java -jar client.jar 203.0.113.10 2020
 ### Deployment
 The server runs on an Oracle Cloud Always Free VM (Ubuntu). It is a raw TCP server, not HTTP, so I needed a VM that lets me open my own port.
 
+### Message delivery
+
+Each client has its own outgoing queue (a bounded `LinkedBlockingQueue` with
+capacity 100) and its own writer thread.
+
+- When a message is broadcast, `ServerMain` only puts it into each client's
+  queue using `offer()`, which never blocks.
+- The client's writer thread takes messages from its queue and writes them to
+  the socket. If the network connection is slow, only that client's writer
+  thread waits.
+- If a client's queue is full, the client is too slow to keep up. The server
+  removes it from the room and closes its connection. The normal cleanup then
+  releases its nickname and announces that it left.
+- When a client disconnects, its writer thread is interrupted so it stops and
+  no threads are leaked.
+
+This is the producer/consumer pattern: the threads calling `broadcast()` are
+the producers, and each client's writer thread is the consumer.
+
 
 ### Known limits
 - Messages are not encrypted and there is no login, so don't write anything private

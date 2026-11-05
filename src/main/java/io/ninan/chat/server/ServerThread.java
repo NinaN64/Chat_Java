@@ -3,9 +3,6 @@ package io.ninan.chat.server;
 import java.io.*;
 import java.net.Socket;
 import java.util.List;
-import java.util.concurrent.BlockingDeque;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -16,6 +13,7 @@ public class ServerThread implements Runnable {
     private final PrintWriter out;
     private final int clientNr;
     private volatile String nickname;
+    private final Thread writerThread;
     private final BlockingQueue<String> outgoing = new LinkedBlockingQueue<>(100);
 
 
@@ -25,15 +23,17 @@ public class ServerThread implements Runnable {
         this.out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
         this.clientNr = main.getClientNr();
         this.nickname = "Client #" + clientNr;
+        writerThread = new Thread(this::writerLoop, "writer-" + nickname);
     }
 
     @Override
     public void run() {
         System.out.println(nickname + " connected.");
+        writerThread.start();
 
         try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
-            out.println("Welcome! You are " + nickname + ". Commands: /nick <name>, /who, /quit");
+            sendMessage("Welcome! You are " + nickname + ". Commands: /nick <name>, /who, /quit");
             serverMain.broadcast("[Server]: " + nickname + " has joined the room.", this);
 
             String message;
@@ -57,6 +57,8 @@ public class ServerThread implements Runnable {
             serverMain.removeClient(this);
             serverMain.releaseNickname(nickname, this);
             serverMain.broadcast("[Server]: " + nickname + " has left.", this);
+            writerThread.interrupt();
+            
             try {
                 socket.close();
             } catch (IOException ignored) {}
@@ -142,7 +144,23 @@ public class ServerThread implements Runnable {
         {
             socket.close();
         }
-        catch(IOException e){}
+        catch(IOException ignored){}
+    }
+
+    private void writerLoop()
+    {
+        try
+        {
+            while(true)
+            {
+                String result = outgoing.take();
+                out.println(result);
+            }
+        }
+        catch(InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+        }
         
     }
 }
